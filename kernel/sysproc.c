@@ -92,4 +92,14 @@ sys_uptime(void)
   return xticks;
 }
 
+uint64
+sys_trace(void)
+{
+  int mask;
+  argint(0, &mask); // Lấy tham số mask từ user-space
+
+  struct proc *p = myproc();
+  p->mask = mask;  // Lưu mask vào tiến trình hiện tại
+  return 0;
+}
 
