@@ -82,32 +82,15 @@ kalloc(void)
 }
 
 uint64
-get_freemem(void){
-  uint64 num_of_FreePage;
-  num_of_FreePage = 0;
-  struct run *r;
-
-  acquire(&kmem.lock);
+nfree(void){
+  int pageCount = 0;
+  struct run* r;
   r = kmem.freelist;
   while(r){
     r = r->next;
-    num_of_FreePage += 1;
+    pageCount++;
+
   }
   release(&kmem.lock);
-
-  return num_of_FreePage * PGSIZE;
-}
-
-uint
-get_nproc(){
-  uint64 num_of_procUnused;
-  num_of_procUnused = 0;
-  struct proc *p;
-
-  for(p = proc; p < &proc[NPROC]; p++){
-    if(p->state != UNUSED){
-      num_of_procUnused += 1;
-    }
-  }
-  return num_of_procUnused;
+  return pageCount * PGSIZE;
 }

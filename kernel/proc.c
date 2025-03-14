@@ -695,14 +695,13 @@ procdump(void)
   }
 }
 
-int
-sysinfo(uint64 addr){
-  struct proc *p = myproc();
-  struct sysinfo info;
-  info.freemem = get_freemem();
-  info.nproc = get_nproc();
-
-  if(copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0)
-    return -1;
-  return 0;
+uint64
+nproc(void){
+  int procCount = 0;
+  struct proc* p;
+  for(p=proc; p< &proc[NPROC]; p++){
+    if(p->state != UNUSED)
+    procCount++;
+  }
+  return procCount;
 }
