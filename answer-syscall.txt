@@ -1,0 +1,17 @@
+1. Looking at the backtrace output, which function called syscall?
+=> usertrap() called syscall 
+
+2. what is the value of p->trapframe->a7 and what does that value represent?
+=> $1 = 7. value of p->trapframe->a7 is 7, represents the systemcall number for exec in syscall.h
+
+3. what was the previous mode that the cpu was in?
+=> According to RISCV privileged instructions if the 8th bit of status is 0, it signifies that it previosly transitioned from user mode. if it is 1, it indicates a prior switch from kernel mode. Since the 8th bit of 0x22 is 0, thi means that switched from user mode
+
+4. write down the assembly instruction the kernel is panicing at. Which register corresponds to the varialable num?
+=> 
+
+5.why does the kernel crash? 
+=> 
+
+6. what is the name of the binary that was running when the kernel paniced? what is its process id (pid)?
+=> 
