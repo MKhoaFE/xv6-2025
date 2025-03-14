@@ -198,7 +198,7 @@ UPROGS=\
 	$U/_primes\
 	$U/_find\
 	$U/_trace\
-	$U/_sysinfo\
+	$U/_sysinfotest
 
 ifeq ($(LAB),syscall)
 UPROGS += \
