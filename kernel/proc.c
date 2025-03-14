@@ -694,3 +694,15 @@ procdump(void)
     printf("\n");
   }
 }
+
+int
+sysinfo(uint64 addr){
+  struct proc *p = myproc();
+  struct sysinfo info;
+  info.freemem = get_freemem();
+  info.nproc = get_nproc();
+
+  if(copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0)
+    return -1;
+  return 0;
+}
