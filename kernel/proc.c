@@ -287,6 +287,8 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
+  np->trace_mask = p->trace_mask;
+
 
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
@@ -692,4 +694,21 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+uint64
+procnum(void)
+{
+  int np = 0;
+  struct proc *p;
+  // 前文有 struct proc proc[NPROC]; 定义了 proc 是一个数组
+  for (p = proc; p < &proc[NPROC]; ++p) // &proc[NPROC] 是最大的 proc 的地址
+  {
+    // p->lock 必须被 held 在获取 state 时
+    acquire(&p->lock);
+    if (p->state != UNUSED)
+      ++np;
+    release(&p->lock);
+  }
+  return np;
 }

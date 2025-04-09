@@ -31,7 +31,7 @@ kinit()
 }
 
 void
-freerange(void *pa_start, void *pa_end)
+freerange(void *pa_start, void *pa_end)  
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
@@ -39,7 +39,7 @@ freerange(void *pa_start, void *pa_end)
     kfree(p);
 }
 
-// Free the page of physical memory pointed at by pa,
+// Free the page of physical memory pointed at by v,
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
@@ -57,7 +57,7 @@ kfree(void *pa)
   r = (struct run*)pa;
 
   acquire(&kmem.lock);
-  r->next = kmem.freelist;
+  r->next = kmem.freelist; 
   kmem.freelist = r;
   release(&kmem.lock);
 }
@@ -79,4 +79,21 @@ kalloc(void)
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+
+uint64
+freebytes(void)
+{
+  uint64 bytes = 0;
+  struct run *p = kmem.freelist;
+
+  acquire(&kmem.lock);
+  while (p)
+  {
+    bytes += PGSIZE;
+    p = p->next;
+  }
+  release(&kmem.lock);
+  return bytes;
 }

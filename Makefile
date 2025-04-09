@@ -197,8 +197,8 @@ UPROGS=\
 	$U/_pingpong\
 	$U/_primes\
 	$U/_find\
-
-
+	$U/_trace\
+	$U/_sysinfotest
 ifeq ($(LAB),syscall)
 UPROGS += \
 	$U/_attack\
