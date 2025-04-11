@@ -1,4 +1,6 @@
 // Saved registers for kernel context switches.
+#include "usyscall.h"
+
 struct context {
   uint64 ra;
   uint64 sp;
@@ -96,6 +98,9 @@ struct proc {
   struct proc *parent;         // Parent process
   
   int trace_mask;
+
+  //datapage for usyscall
+  struct usyscall *usyscall; 
 
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
