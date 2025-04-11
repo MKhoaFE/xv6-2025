@@ -118,3 +118,37 @@ sys_sysinfo(void) {
 
   return 0;
 }
+
+uint64
+sys_pgaccess(void)
+{
+    uint64 start_va; // Địa chỉ bắt đầu
+    int num_pages;   // Số lượng pages
+    uint64 user_mask; // Địa chỉ user-space để lưu kết quả
+
+    if(argaddr(0, &start_va) < 0 || argint(1, &num_pages) < 0 || argaddr(2, &user_mask) < 0)
+        return -1;
+
+    if(num_pages <= 0 || num_pages > 64)
+        return -1;
+
+    uint64 mask = 0;
+    pagetable_t pagetable = myproc()->pagetable;
+
+    for(int i = 0; i < num_pages; i++){
+        uint64 va = start_va + i * PGSIZE;
+        pte_t *pte = walk(pagetable, va, 0);
+        if(pte == 0)
+            continue;
+
+        if(*pte & PTE_A){
+            mask |= (1L << i);     // Đánh dấu bit thứ i
+            *pte &= ~PTE_A;        // Clear PTE_A sau khi check
+        }
+    }
+
+    if(copyout(pagetable, user_mask, (char *)&mask, sizeof(mask)) < 0)
+        return -1;
+
+    return 0;
+}
