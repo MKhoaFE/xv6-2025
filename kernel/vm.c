@@ -449,3 +449,41 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+
+// solution: vmprint()
+void
+recursive_vmprint(pagetable_t pagetable, uint64 depth)
+{
+    // only 3 level pagetable
+    if(depth > 2){
+        return;
+    }
+
+    // there are 2^9 = 512 PTEs in a page table
+    for(int i = 0; i < 512; i++){
+        pte_t pte = pagetable[i];
+        if(pte & PTE_V){
+            // this PTE points to a lower-level page table.
+            uint64 child = PTE2PA(pte);
+            if(depth == 0){
+                printf(" ..%d: pte %lx pa %lx\n", i , pte, child);
+                recursive_vmprint((pagetable_t)child, depth + 1);
+            }else if(depth == 1){
+                printf(" .. ..%d: pte %lx pa %lx\n", i , pte, child);
+                recursive_vmprint((pagetable_t)child, depth + 1);
+            }else{
+                printf(" .. .. ..%d: pte %lx pa %lx\n", i , pte, child);
+            }
+        }
+    }
+    return;
+}
+
+void 
+vmprint(pagetable_t pagetable)
+{
+    printf("page table %p\n", pagetable);
+    recursive_vmprint(pagetable, 0);
+    return;
+}
