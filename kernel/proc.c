@@ -5,7 +5,6 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
-#include "usyscall.h"
 
 struct cpu cpus[NCPU];
 
@@ -112,6 +111,8 @@ allocproc(void)
 {
   struct proc *p;
 
+  printf(">> allocproc called\n");
+
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -127,20 +128,26 @@ found:
   p->state = USED;
 
   // Allocate a trapframe page.
-  if((p->trapframe = (struct trapframe *)kalloc()) == 0 ){
+  p->trapframe = (struct trapframe *) kalloc();
+  if (p->trapframe == 0) {
     freeproc(p);
     release(&p->lock);
     return 0;
   }
 
   // Allocate usyscall page.
-  if((p->usyscall = (struct usyscall *)kalloc()) == 0 ){
+  p->usyscall = (struct usyscall *) kalloc();
+  if (p->usyscall == 0) {
     freeproc(p);
     release(&p->lock);
     return 0;
   }
+  memset(p->usyscall, 0, PGSIZE);
+  p->usyscall->pid = p->pid;
+  printf(">> usyscall mapped to address %p\n", p->usyscall);
 
-  // Empty pagetable.
+  // Create a new empty user pagetable.
+  printf(">> calling proc_pagetable()\n");
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
     freeproc(p);
@@ -148,13 +155,11 @@ found:
     return 0;
   }
 
-  // Set context for forkret.
+  // Set up new context to start executing at forkret,
+  // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
-  // Initialize usyscall content
-  p->usyscall->pid = p->pid;
 
   return p;
 }
@@ -163,23 +168,26 @@ found:
 // free a proc structure and the data hanging from it,
 // including user pages.
 // p->lock must be held.
-void
+static void
 freeproc(struct proc *p)
 {
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
-
-  if(p->usyscall)
-    kfree((void*)p->usyscall);
+  if (p->usyscall) {
+    kfree((void *) p->usyscall);
+  }
   p->usyscall = 0;
-
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
-
   p->sz = 0;
   p->pid = 0;
+  p->parent = 0;
+  p->name[0] = 0;
+  p->chan = 0;
+  p->killed = 0;
+  p->xstate = 0;
   p->state = UNUSED;
 }
 
@@ -194,20 +202,25 @@ proc_pagetable(struct proc *p)
   if(pagetable == 0)
     return 0;
 
-  if(mappages(pagetable, TRAMPOLINE, PGSIZE, (uint64)trampoline, PTE_R | PTE_X) < 0){
+  // Map the trampoline (for trap return)
+  if(mappages(pagetable, TRAMPOLINE, PGSIZE,
+              (uint64)trampoline, PTE_R | PTE_X) < 0){
     uvmfree(pagetable, 0);
     return 0;
   }
 
-  if(mappages(pagetable, TRAPFRAME, PGSIZE, (uint64)p->trapframe, PTE_R | PTE_W) < 0){
-    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+  // Map the trapframe just below the trampoline
+  if(mappages(pagetable, TRAPFRAME, PGSIZE,
+              (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
     uvmfree(pagetable, 0);
     return 0;
   }
 
-  if(mappages(pagetable, USYSCALL, PGSIZE, (uint64)p->usyscall, PTE_R | PTE_U) < 0){
-    uvmunmap(pagetable, TRAPFRAME, 1, 0);
-    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+  // 🔽 Nếu bạn thêm syscall page:
+  printf(">> mapping USYSCALL at %p -> %p\n", (void*)USYSCALL, p->usyscall);
+  if(mappages(pagetable, USYSCALL, PGSIZE,
+              (uint64)(p->usyscall), PTE_R | PTE_U) < 0){
+    printf("!! mappages for USYSCALL failed\n");
     uvmfree(pagetable, 0);
     return 0;
   }
@@ -216,18 +229,16 @@ proc_pagetable(struct proc *p)
 }
 
 
-
 // Free a process's page table, and free the
 // physical memory it refers to.
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
-  uvmunmap(pagetable, USYSCALL, 1, 0);
-  uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+  uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  uvmunmap(pagetable, USYSCALL, 1, 0);
   uvmfree(pagetable, sz);
 }
-
 
 // a user program that calls exec("/init")
 // assembled from ../user/initcode.S
@@ -301,8 +312,6 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
-  np->trace_mask = p->trace_mask;
-
 
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
@@ -708,21 +717,4 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
-}
-
-uint64
-procnum(void)
-{
-  int np = 0;
-  struct proc *p;
-  // 前文有 struct proc proc[NPROC]; 定义了 proc 是一个数组
-  for (p = proc; p < &proc[NPROC]; ++p) // &proc[NPROC] 是最大的 proc 的地址
-  {
-    // p->lock 必须被 held 在获取 state 时
-    acquire(&p->lock);
-    if (p->state != UNUSED)
-      ++np;
-    release(&p->lock);
-  }
-  return np;
 }

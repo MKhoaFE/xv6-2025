@@ -450,8 +450,6 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
-
-// solution: vmprint()
 void
 recursive_vmprint(pagetable_t pagetable, uint64 depth)
 {
