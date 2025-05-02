@@ -454,34 +454,66 @@ void
 recursive_vmprint(pagetable_t pagetable, uint64 depth)
 {
     // only 3 level pagetable
-    if(depth > 2){
+    if (depth > 2) {
         return;
     }
 
     // there are 2^9 = 512 PTEs in a page table
-    for(int i = 0; i < 512; i++){
+    for (int i = 0; i < 512; i++) {
         pte_t pte = pagetable[i];
-        if(pte & PTE_V){
+        if (pte & PTE_V) {
             // this PTE points to a lower-level page table.
             uint64 child = PTE2PA(pte);
-            if(depth == 0){
-                printf(" ..%d: pte %lx pa %lx\n", i , pte, child);
+            if (depth == 0) {
+                printf(" ..%d: pte %lx pa %lx\n", i, pte, child);
                 recursive_vmprint((pagetable_t)child, depth + 1);
-            }else if(depth == 1){
-                printf(" .. ..%d: pte %lx pa %lx\n", i , pte, child);
+            } else if (depth == 1) {
+                printf(" .. ..%d: pte %lx pa %lx\n", i, pte, child);
                 recursive_vmprint((pagetable_t)child, depth + 1);
-            }else{
-                printf(" .. .. ..%d: pte %lx pa %lx\n", i , pte, child);
+            } else {
+                printf(" .. .. ..%d: pte %lx pa %lx\n", i, pte, child);
             }
         }
     }
     return;
 }
 
-void 
-vmprint(pagetable_t pagetable)
+void
+vmprintwalk(uint64 paths[2][3], pagetable_t root, int cnt)
 {
-    printf("page table %p\n", pagetable);
-    recursive_vmprint(pagetable, 0);
-    return;
+    if (cnt == 2) {
+        // Khi đến lá, in ra 2 bước trước
+        printf(" ..%ld: pte %lx pa %lx\n", paths[0][0], paths[0][1], paths[0][2]);
+        printf(" .. ..%ld: pte %lx pa %lx\n", paths[1][0], paths[1][1], paths[1][2]);
+    }
+
+    // Duyệt 512 PTEs
+    for (int i = 0; i < 512; i++) {
+        pte_t pte = root[i];
+        uint64 child = PTE2PA(pte);
+
+        if ((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0) {
+            // Entry này là 1 bảng page cấp dưới
+            if (cnt < 2) {
+                paths[cnt][0] = i;
+                paths[cnt][1] = pte;
+                paths[cnt][2] = child;
+            } else {
+                continue;
+            }
+            vmprintwalk(paths, (pagetable_t)child, cnt + 1);
+        } else if (pte & PTE_V) {
+            // Entry hợp lệ, là leaf
+            printf(" .. .. ..%d: pte %lx pa %lx\n", i, pte, child);
+        }
+    }
+}
+
+/* In thông tin toàn bộ page table */
+void
+vmprint(pagetable_t root)
+{
+    uint64 paths[2][3];
+    printf("page table %p\n", root);
+    vmprintwalk(paths, root, 0);
 }
